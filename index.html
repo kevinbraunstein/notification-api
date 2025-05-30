@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notification API Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .container {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .button-group {
+            margin: 20px 0;
+        }
+        button {
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        code {
+            background-color: #f5f5f5;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        #permissionStatus {
+            font-weight: bold;
+        }
+        .control-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .form-group {
+            margin-bottom: 10px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .notification-log {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 20px;
+            background-color: #f9f9f9;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <h1>Notification API Test Page</h1>
+
+    <div class="container">
+        <h2>Notification Permission</h2>
+        <p>Current permission status: <span id="permissionStatus">checking...</span></p>
+        <div class="button-group">
+            <button id="requestPermission">Request Notification Permission</button>
+        </div>
+        <div id="permissionMessage" class="status"></div>
+    </div>
+
+    <div class="container">
+        <h2>Send Test Notifications</h2>
+        <div class="control-panel">
+            <div>
+                <div class="form-group">
+                    <label for="notificationTitle">Notification Title:</label>
+                    <input type="text" id="notificationTitle" value="Test Notification">
+                </div>
+                <div class="form-group">
+                    <label for="notificationBody">Notification Body:</label>
+                    <textarea id="notificationBody" rows="3">You received a message from John Doe</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="notificationIcon">Notification Icon URL (optional):</label>
+                    <input type="text" id="notificationIcon" value="">
+                </div>
+            </div>
+            <div>
+                <div class="form-group">
+                    <label for="notificationTag">Tag (for grouping):</label>
+                    <input type="text" id="notificationTag" value="test">
+                </div>
+                <div class="form-group">
+                    <label for="notificationDelay">Delay (seconds):</label>
+                    <input type="number" id="notificationDelay" value="0" min="0" max="30">
+                </div>
+                <div class="button-group" style="margin-top: 24px;">
+                    <button id="sendNotification">Send Notification</button>
+                    <button id="sendMultiple">Send 3 Notifications</button>
+                </div>
+            </div>
+        </div>
+        <div id="notificationMessage" class="status"></div>
+
+        <div class="notification-log">
+            <h3>Notification Log</h3>
+            <div id="notificationLog"></div>
+        </div>
+    </div>
+
+    <script>
+        // Elements
+        const permissionStatusEl = document.getElementById('permissionStatus');
+        const permissionMessageEl = document.getElementById('permissionMessage');
+        const notificationMessageEl = document.getElementById('notificationMessage');
+        const notificationLogEl = document.getElementById('notificationLog');
+
+        // Check if browser supports notifications
+        function checkNotificationSupport() {
+            if (!('Notification' in window)) {
+                permissionStatusEl.textContent = 'NOT SUPPORTED';
+                permissionMessageEl.textContent = 'This browser does not support desktop notifications.';
+                permissionMessageEl.className = 'status error';
+                disableButtons();
+                return false;
+            }
+            return true;
+        }
+
+        // Update permission status display
+        function updatePermissionStatus() {
+            if (!checkNotificationSupport()) return;
+
+            permissionStatusEl.textContent = Notification.permission.toUpperCase();
+
+            if (Notification.permission === 'granted') {
+                permissionMessageEl.textContent = 'Permission granted! You can now receive notifications.';
+                permissionMessageEl.className = 'status success';
+            } else if (Notification.permission === 'denied') {
+                permissionMessageEl.textContent = 'Permission denied. Please enable notifications in your browser settings.';
+                permissionMessageEl.className = 'status error';
+            } else {
+                permissionMessageEl.textContent = 'Permission not requested yet.';
+                permissionMessageEl.className = 'status warning';
+            }
+        }
+
+        // Disable all notification buttons
+        function disableButtons() {
+            document.getElementById('sendNotification').disabled = true;
+            document.getElementById('sendMultiple').disabled = true;
+        }
+
+        // Request notification permission
+        async function requestPermission() {
+            if (!checkNotificationSupport()) return;
+
+            try {
+                const permission = await Notification.requestPermission();
+                updatePermissionStatus();
+                logEvent(`Permission request result: ${permission}`);
+            } catch (error) {
+                permissionMessageEl.textContent = `Error requesting permission: ${error.message}`;
+                permissionMessageEl.className = 'status error';
+                logEvent(`Error requesting permission: ${error.message}`);
+            }
+        }
+
+        // Send a notification
+        function sendNotification() {
+            if (!checkNotificationSupport()) return;
+
+            if (Notification.permission !== 'granted') {
+                notificationMessageEl.textContent = 'Permission not granted. Cannot send notification.';
+                notificationMessageEl.className = 'status error';
+                return;
+            }
+
+            const title = document.getElementById('notificationTitle').value || 'Test Notification';
+            const body = document.getElementById('notificationBody').value || 'This is a test notification';
+            const icon = document.getElementById('notificationIcon').value || null;
+            const tag = document.getElementById('notificationTag').value || 'test';
+            const delay = parseInt(document.getElementById('notificationDelay').value || 0) * 1000;
+
+            setTimeout(() => {
+                try {
+                    const notification = new Notification(title, {
+                        body: body,
+                        icon: icon,
+                        tag: tag
+                    });
+
+                    notification.onclick = function() {
+                        logEvent('Notification clicked');
+                        window.focus();
+                        this.close();
+                    };
+
+                    notification.onclose = function() {
+                        logEvent('Notification closed');
+                    };
+
+                    notificationMessageEl.textContent = 'Notification sent successfully!';
+                    notificationMessageEl.className = 'status success';
+                    logEvent(`Notification sent: "${title}"`);
+                } catch (error) {
+                    notificationMessageEl.textContent = `Error sending notification: ${error.message}`;
+                    notificationMessageEl.className = 'status error';
+                    logEvent(`Error sending notification: ${error.message}`);
+                }
+            }, delay);
+        }
+
+        // Send multiple notifications
+        function sendMultipleNotifications() {
+            if (!checkNotificationSupport()) return;
+
+            if (Notification.permission !== 'granted') {
+                notificationMessageEl.textContent = 'Permission not granted. Cannot send notifications.';
+                notificationMessageEl.className = 'status error';
+                return;
+            }
+
+            const baseTitle = document.getElementById('notificationTitle').value || 'Test Notification';
+            const baseBody = document.getElementById('notificationBody').value || 'This is a test notification';
+            const icon = document.getElementById('notificationIcon').value || null;
+            const tag = document.getElementById('notificationTag').value || 'test';
+
+            for (let i = 1; i <= 3; i++) {
+                setTimeout(() => {
+                    try {
+                        const notification = new Notification(`${baseTitle} #${i}`, {
+                            body: `${baseBody} (${i}/3)`,
+                            icon: icon,
+                            tag: `${tag}-${i}`
+                        });
+
+                        logEvent(`Notification #${i} sent`);
+                    } catch (error) {
+                        logEvent(`Error sending notification #${i}: ${error.message}`);
+                    }
+                }, i * 1000);
+            }
+
+            notificationMessageEl.textContent = 'Sending 3 notifications...';
+            notificationMessageEl.className = 'status success';
+        }
+
+        // Log events to the notification log
+        function logEvent(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            notificationLogEl.prepend(logEntry);
+        }
+
+        // Event listeners
+        document.getElementById('requestPermission').addEventListener('click', requestPermission);
+        document.getElementById('sendNotification').addEventListener('click', sendNotification);
+        document.getElementById('sendMultiple').addEventListener('click', sendMultipleNotifications);
+
+        // Initialize
+        window.addEventListener('load', () => {
+            updatePermissionStatus();
+            logEvent('Page loaded');
+        });
+    </script>
+</body>
+</html>
